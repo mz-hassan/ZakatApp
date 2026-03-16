@@ -3,6 +3,10 @@ import { LEDGER_TYPES } from '../utils/constants';
 
 export const ZakatService = {
     async calculate(yearId, profileId) {
+        // Read configurable zakat percentage
+        const pctSetting = await db.settings.get('zakatPercentage');
+        const zakatRate = pctSetting?.value ?? 0.025;
+
         const entries = await db.ledger
             .where('[zakatYearId+profileId]')
             .equals([yearId, profileId])
@@ -17,7 +21,7 @@ export const ZakatService = {
             .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
         const eligible = Math.max(0, totalHoldings - interestRemoved);
-        const zakatDue = eligible * 0.025;
+        const zakatDue = eligible * zakatRate;
 
         const given = entries
             .filter(e => e.type === LEDGER_TYPES.ZAKAT_PAYMENT_COMPLETED)
@@ -36,6 +40,7 @@ export const ZakatService = {
             totalHoldings,
             interestRemoved,
             eligible,
+            zakatRate,
             zakatDue,
             given,
             planned,

@@ -7,7 +7,7 @@ import ProfileScreen from './screens/ProfileScreen';
 import PaymentsScreen from './screens/PaymentsScreen';
 import RecipientsScreen from './screens/RecipientsScreen';
 import SettingsScreen from './screens/SettingsScreen';
-import TrusteesScreen from './screens/TrusteesScreen';
+
 
 export default function App() {
     const [unlocked, setUnlocked] = useState(false);
@@ -66,8 +66,7 @@ export default function App() {
             return <RecipientsScreen onBack={goBack} />;
         case 'settings':
             return <SettingsScreen onBack={goBack} />;
-        case 'trustees':
-            return <TrusteesScreen onBack={goBack} />;
+
         default:
             return <HomeScreen onNavigate={navigate} />;
     }

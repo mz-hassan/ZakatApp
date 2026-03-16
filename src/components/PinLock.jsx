@@ -21,6 +21,13 @@ export default function PinLock({ onUnlock }) {
     }, []);
 
     async function checkPin() {
+        // Check if PIN is enabled
+        const pinEnabledSetting = await db.settings.get('pinEnabled');
+        if (pinEnabledSetting && pinEnabledSetting.value === false) {
+            onUnlock();
+            return;
+        }
+
         const setting = await db.settings.get('pin');
         if (!setting || !setting.value) {
             setStep('setup');

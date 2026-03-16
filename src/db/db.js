@@ -36,6 +36,18 @@ export async function seedDatabase() {
         await db.settings.put({ key: 'pin', value: null });
     }
 
+    // Seed pinEnabled setting
+    const pinEnabled = await db.settings.get('pinEnabled');
+    if (!pinEnabled) {
+        await db.settings.put({ key: 'pinEnabled', value: true });
+    }
+
+    // Seed zakatPercentage setting
+    const zakatPct = await db.settings.get('zakatPercentage');
+    if (!zakatPct) {
+        await db.settings.put({ key: 'zakatPercentage', value: 0.025 });
+    }
+
     // Seed Anonymous trustee
     const trusteeCount = await db.trustees.count();
     if (trusteeCount === 0) {

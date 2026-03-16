@@ -27,7 +27,6 @@ export default function ProfileScreen({ yearId, profileId, onNavigate, onBack })
     const [holdingForm, setHoldingForm] = useState({ name: '', category: 'Bank', value: '', notes: '' });
     const [interestForm, setInterestForm] = useState({ amount: '', holdingId: '', notes: '' });
     const [paymentForm, setPaymentForm] = useState({ recipientId: '', recipientName: '', amount: '', notes: '', date: todayISO(), trusteeId: '', newTrusteeName: '' });
-    const [recipientSearch, setRecipientSearch] = useState('');
     const [recipients, setRecipients] = useState([]);
     const [trustees, setTrustees] = useState([]);
     const [editHolding, setEditHolding] = useState(null);
@@ -138,7 +137,7 @@ export default function ProfileScreen({ yearId, profileId, onNavigate, onBack })
         if (!paymentForm.amount) return;
         let recipientId = paymentForm.recipientId;
 
-        // If "anonymous" is selected, find or create an Anonymous recipient
+        // BUG FIX: Handle special dropdown values properly
         if (recipientId === '__anonymous__') {
             let anon = recipients.find(r => r.name.toLowerCase() === 'anonymous');
             if (!anon) {
@@ -146,17 +145,23 @@ export default function ProfileScreen({ yearId, profileId, onNavigate, onBack })
             } else {
                 recipientId = anon.id;
             }
-        } else if (!recipientId && paymentForm.recipientName.trim()) {
+        } else if (recipientId === '__new__') {
+            // Create new recipient from typed name
+            if (!paymentForm.recipientName.trim()) return;
             recipientId = await RecipientsService.add(paymentForm.recipientName.trim());
+        } else if (!recipientId) {
+            return; // Nothing selected
+        } else {
+            // BUG FIX: Cast string from <select> to Number for IndexedDB compatibility
+            recipientId = Number(recipientId);
         }
-        if (!recipientId) return;
 
         // Handle trustee — could be existing or new
-        let trusteeId = paymentForm.trusteeId ? Number(paymentForm.trusteeId) : undefined;
+        let trusteeId = undefined;
         if (paymentForm.trusteeId === '__new__' && paymentForm.newTrusteeName.trim()) {
             trusteeId = await TrusteesService.add(paymentForm.newTrusteeName.trim());
-        } else if (paymentForm.trusteeId === '__new__') {
-            trusteeId = undefined; // new name was empty, skip
+        } else if (paymentForm.trusteeId && paymentForm.trusteeId !== '__new__') {
+            trusteeId = Number(paymentForm.trusteeId);
         }
 
         const type = paymentType === 'planned' ? LEDGER_TYPES.ZAKAT_PAYMENT_PLANNED : LEDGER_TYPES.ZAKAT_PAYMENT_COMPLETED;
@@ -172,26 +177,12 @@ export default function ProfileScreen({ yearId, profileId, onNavigate, onBack })
         });
         setShowPayment(false);
         setPaymentForm({ recipientId: '', recipientName: '', amount: '', notes: '', date: todayISO(), trusteeId: '', newTrusteeName: '' });
-        setRecipientSearch('');
         await loadData();
     }
 
-    // Filter recipients by search
-    const filteredRecipients = useMemo(() => {
-        if (!recipientSearch) return recipients;
-        return recipients.filter(r => r.name.toLowerCase().includes(recipientSearch.toLowerCase()));
-    }, [recipients, recipientSearch]);
-
-    // Get display name for selected recipient
-    const selectedRecipientName = useMemo(() => {
-        if (paymentForm.recipientId === '__anonymous__') return 'Anonymous';
-        if (paymentForm.recipientId === '__new__') return 'New: ' + paymentForm.recipientName;
-        const found = recipients.find(r => r.id === paymentForm.recipientId);
-        return found ? found.name : '';
-    }, [paymentForm.recipientId, paymentForm.recipientName, recipients]);
-
     if (!profile || !year) return null;
     const isLocked = year.locked;
+    const zakatPctDisplay = ((stats.zakatRate || 0.025) * 100).toFixed(1);
 
     return (
         <div className="fade-in">
@@ -237,15 +228,21 @@ export default function ProfileScreen({ yearId, profileId, onNavigate, onBack })
                 <div className="card" style={{ marginBottom: '0.75rem' }}>
                     <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.75rem' }}>Zakat</div>
                     <div className="stat-row">
-                        <span className="stat-label">Zakat Due (2.5%)</span>
+                        <span className="stat-label">Zakat Due ({zakatPctDisplay}%)</span>
                         <span className="stat-value">{formatCurrency(stats.zakatDue)}</span>
                     </div>
                     <div className="stat-row">
                         <span className="stat-label">Given</span>
-                        <span className="stat-value">{formatCurrency(stats.given)}</span>
+                        <span className="stat-value" style={{ color: '#10b981' }}>{formatCurrency(stats.given)}</span>
                     </div>
-                    <div className="stat-row">
-                        <span className="stat-label">Remaining</span>
+                    {stats.planned > 0 && (
+                        <div className="stat-row">
+                            <span className="stat-label">Planned</span>
+                            <span className="stat-value" style={{ color: '#a78bfa' }}>{formatCurrency(stats.planned)}</span>
+                        </div>
+                    )}
+                    <div className="stat-row" style={{ borderTop: '1px solid var(--color-border)', paddingTop: '0.5rem', marginTop: '0.25rem' }}>
+                        <span className="stat-label" style={{ fontWeight: 600, color: 'var(--color-text)' }}>Remaining</span>
                         <span className="stat-value" style={{ color: stats.remaining > 0 ? '#fbbf24' : '#10b981' }}>
                             {formatCurrency(stats.remaining)}
                         </span>
@@ -265,23 +262,21 @@ export default function ProfileScreen({ yearId, profileId, onNavigate, onBack })
 
                 {/* Section 3: Action Buttons */}
                 {!isLocked && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.625rem', marginTop: '0.75rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem', marginTop: '0.75rem' }}>
                         <button className="btn btn-primary" style={{ fontSize: '0.9rem', padding: '0.875rem 0.5rem' }}
                             onClick={() => { setPaymentType('completed'); setShowPayment(true); }}>
                             Add Payment
                         </button>
-                        <button className="btn btn-secondary" style={{ fontSize: '0.9rem', padding: '0.875rem 0.5rem' }}
-                            onClick={() => { setPaymentType('planned'); setShowPayment(true); }}>
-                            Plan Payment
-                        </button>
-                        <button className="btn btn-secondary" style={{ fontSize: '0.9rem', padding: '0.875rem 0.5rem' }}
-                            onClick={() => onNavigate('payments', { yearId, profileId })}>
-                            View Payments
-                        </button>
-                        <button className="btn btn-secondary" style={{ fontSize: '0.9rem', padding: '0.875rem 0.5rem' }}
-                            onClick={() => onNavigate('recipients')}>
-                            Recipients
-                        </button>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.625rem' }}>
+                            <button className="btn btn-secondary" style={{ fontSize: '0.85rem', padding: '0.75rem 0.25rem' }}
+                                onClick={() => { setPaymentType('planned'); setShowPayment(true); }}>
+                                Plan Payment
+                            </button>
+                            <button className="btn btn-secondary" style={{ fontSize: '0.85rem', padding: '0.75rem 0.25rem' }}
+                                onClick={() => onNavigate('payments', { yearId, profileId })}>
+                                View Payments
+                            </button>
+                        </div>
                     </div>
                 )}
 
@@ -303,19 +298,18 @@ export default function ProfileScreen({ yearId, profileId, onNavigate, onBack })
                                                 </div>
                                             )}
                                         </div>
-                                        <div style={{ textAlign: 'right' }}>
-                                            <div style={{ fontWeight: 700, color: '#10b981' }}>{formatCurrency(h.value)}</div>
-                                            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
-                                                <button style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', fontSize: '0.8rem' }}
-                                                    onClick={() => {
-                                                        setEditHolding(h);
-                                                        setHoldingForm({ name: h.name, category: h.category, value: String(h.value), notes: h.notes || '' });
-                                                        setShowAddHolding(true);
-                                                    }}>Edit</button>
-                                                <button style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem' }}
-                                                    onClick={() => handleDeleteHolding(h.id)}>Delete</button>
-                                            </div>
-                                        </div>
+                                        <div style={{ fontWeight: 700, color: '#10b981', fontSize: '1rem' }}>{formatCurrency(h.value)}</div>
+                                    </div>
+                                    {/* Aligned action buttons on separate row */}
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '0.5rem', borderTop: '1px solid var(--color-border)', paddingTop: '0.5rem' }}>
+                                        <button style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', fontSize: '0.8rem', padding: '0.25rem 0' }}
+                                            onClick={() => {
+                                                setEditHolding(h);
+                                                setHoldingForm({ name: h.name, category: h.category, value: String(h.value), notes: h.notes || '' });
+                                                setShowAddHolding(true);
+                                            }}>Edit</button>
+                                        <button style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem', padding: '0.25rem 0' }}
+                                            onClick={() => handleDeleteHolding(h.id)}>Delete</button>
                                     </div>
                                 </div>
                             ))}
@@ -444,10 +438,10 @@ export default function ProfileScreen({ yearId, profileId, onNavigate, onBack })
                 </Modal>
 
                 {/* Add Payment Modal */}
-                <Modal isOpen={showPayment} onClose={() => { setShowPayment(false); setRecipientSearch(''); }}
+                <Modal isOpen={showPayment} onClose={() => setShowPayment(false)}
                     title={paymentType === 'planned' ? 'Plan Payment' : 'Add Payment'}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
-                        {/* Recipient — searchable dropdown */}
+                        {/* Recipient — dropdown */}
                         <div>
                             <label className="label">Recipient</label>
                             <select className="input-field" value={paymentForm.recipientId}
