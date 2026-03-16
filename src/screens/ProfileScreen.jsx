@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ProfilesService } from '../services/profiles';
 import { HoldingsService } from '../services/holdings';
 import { ZakatService } from '../services/zakat';
@@ -26,7 +26,8 @@ export default function ProfileScreen({ yearId, profileId, onNavigate, onBack })
     // Form state
     const [holdingForm, setHoldingForm] = useState({ name: '', category: 'Bank', value: '', notes: '' });
     const [interestForm, setInterestForm] = useState({ amount: '', holdingId: '', notes: '' });
-    const [paymentForm, setPaymentForm] = useState({ recipientId: '', recipientName: '', amount: '', notes: '', date: todayISO(), trusteeId: '' });
+    const [paymentForm, setPaymentForm] = useState({ recipientId: '', recipientName: '', amount: '', notes: '', date: todayISO(), trusteeId: '', newTrusteeName: '' });
+    const [recipientSearch, setRecipientSearch] = useState('');
     const [recipients, setRecipients] = useState([]);
     const [trustees, setTrustees] = useState([]);
     const [editHolding, setEditHolding] = useState(null);
@@ -51,7 +52,6 @@ export default function ProfileScreen({ yearId, profileId, onNavigate, onBack })
         setRecipients(r);
         setTrustees(t);
 
-        // Load interest entries for this profile+year
         const entries = await LedgerService.getByYearAndProfile(yearId, profileId);
         setInterestEntries(entries.filter(e => e.type === LEDGER_TYPES.INTEREST_REMOVED).reverse());
     }
@@ -137,26 +137,58 @@ export default function ProfileScreen({ yearId, profileId, onNavigate, onBack })
     async function handleAddPayment() {
         if (!paymentForm.amount) return;
         let recipientId = paymentForm.recipientId;
-        if (!recipientId && paymentForm.recipientName.trim()) {
+
+        // If "anonymous" is selected, find or create an Anonymous recipient
+        if (recipientId === '__anonymous__') {
+            let anon = recipients.find(r => r.name.toLowerCase() === 'anonymous');
+            if (!anon) {
+                recipientId = await RecipientsService.add('Anonymous');
+            } else {
+                recipientId = anon.id;
+            }
+        } else if (!recipientId && paymentForm.recipientName.trim()) {
             recipientId = await RecipientsService.add(paymentForm.recipientName.trim());
         }
         if (!recipientId) return;
+
+        // Handle trustee — could be existing or new
+        let trusteeId = paymentForm.trusteeId ? Number(paymentForm.trusteeId) : undefined;
+        if (paymentForm.trusteeId === '__new__' && paymentForm.newTrusteeName.trim()) {
+            trusteeId = await TrusteesService.add(paymentForm.newTrusteeName.trim());
+        } else if (paymentForm.trusteeId === '__new__') {
+            trusteeId = undefined; // new name was empty, skip
+        }
 
         const type = paymentType === 'planned' ? LEDGER_TYPES.ZAKAT_PAYMENT_PLANNED : LEDGER_TYPES.ZAKAT_PAYMENT_COMPLETED;
         await LedgerService.add({
             type,
             profileId,
             recipientId,
-            trusteeId: paymentForm.trusteeId ? Number(paymentForm.trusteeId) : undefined,
+            trusteeId,
             amount: Number(paymentForm.amount),
             zakatYearId: yearId,
             notes: paymentForm.notes,
             date: paymentForm.date || new Date().toISOString(),
         });
         setShowPayment(false);
-        setPaymentForm({ recipientId: '', recipientName: '', amount: '', notes: '', date: todayISO(), trusteeId: '' });
+        setPaymentForm({ recipientId: '', recipientName: '', amount: '', notes: '', date: todayISO(), trusteeId: '', newTrusteeName: '' });
+        setRecipientSearch('');
         await loadData();
     }
+
+    // Filter recipients by search
+    const filteredRecipients = useMemo(() => {
+        if (!recipientSearch) return recipients;
+        return recipients.filter(r => r.name.toLowerCase().includes(recipientSearch.toLowerCase()));
+    }, [recipients, recipientSearch]);
+
+    // Get display name for selected recipient
+    const selectedRecipientName = useMemo(() => {
+        if (paymentForm.recipientId === '__anonymous__') return 'Anonymous';
+        if (paymentForm.recipientId === '__new__') return 'New: ' + paymentForm.recipientName;
+        const found = recipients.find(r => r.id === paymentForm.recipientId);
+        return found ? found.name : '';
+    }, [paymentForm.recipientId, paymentForm.recipientName, recipients]);
 
     if (!profile || !year) return null;
     const isLocked = year.locked;
@@ -218,7 +250,6 @@ export default function ProfileScreen({ yearId, profileId, onNavigate, onBack })
                             {formatCurrency(stats.remaining)}
                         </span>
                     </div>
-                    {/* Allocation breakdown */}
                     {stats.zakatDue > 0 && (
                         <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '0.25rem', paddingLeft: '0.25rem' }}>
                             Allocated: {formatCurrency(stats.allocated)} · Unallocated: {formatCurrency(stats.unallocated)}
@@ -413,48 +444,40 @@ export default function ProfileScreen({ yearId, profileId, onNavigate, onBack })
                 </Modal>
 
                 {/* Add Payment Modal */}
-                <Modal isOpen={showPayment} onClose={() => setShowPayment(false)}
+                <Modal isOpen={showPayment} onClose={() => { setShowPayment(false); setRecipientSearch(''); }}
                     title={paymentType === 'planned' ? 'Plan Payment' : 'Add Payment'}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+                        {/* Recipient — searchable dropdown */}
                         <div>
                             <label className="label">Recipient</label>
-                            {recipients.length > 0 && (
-                                <div style={{
-                                    maxHeight: '30vh', overflowY: 'auto', border: '1px solid var(--color-border)',
-                                    borderRadius: 8, marginBottom: paymentForm.recipientId ? 0 : '0.5rem',
+                            <select className="input-field" value={paymentForm.recipientId}
+                                style={{ fontSize: '0.9rem' }}
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    setPaymentForm(f => ({ ...f, recipientId: val, recipientName: '' }));
                                 }}>
-                                    {recipients.map(r => (
-                                        <div key={r.id}
-                                            onClick={() => setPaymentForm(f => ({ ...f, recipientId: r.id, recipientName: '' }))}
-                                            style={{
-                                                padding: '0.75rem 1rem', cursor: 'pointer',
-                                                borderBottom: '1px solid var(--color-border)',
-                                                background: paymentForm.recipientId === r.id ? 'rgba(16,185,129,0.15)' : 'transparent',
-                                                fontSize: '1rem', fontWeight: paymentForm.recipientId === r.id ? 600 : 400,
-                                                color: paymentForm.recipientId === r.id ? '#10b981' : 'var(--color-text)',
-                                            }}>
-                                            {r.name}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                            {paymentForm.recipientId && (
-                                <button style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', fontSize: '0.8rem', marginTop: '0.25rem' }}
-                                    onClick={() => setPaymentForm(f => ({ ...f, recipientId: '' }))}>
-                                    Clear selection
-                                </button>
-                            )}
-                            {!paymentForm.recipientId && (
-                                <input className="input-field" placeholder="Or type a new recipient name"
+                                <option value="">-- Select Recipient --</option>
+                                <option value="__anonymous__">Anonymous</option>
+                                {recipients.map(r => (
+                                    <option key={r.id} value={r.id}>{r.name}</option>
+                                ))}
+                                <option value="__new__">+ Add New Recipient</option>
+                            </select>
+                            {paymentForm.recipientId === '__new__' && (
+                                <input className="input-field" style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}
+                                    placeholder="Enter new recipient name"
                                     value={paymentForm.recipientName}
-                                    onChange={e => setPaymentForm(f => ({ ...f, recipientName: e.target.value }))} />
+                                    onChange={e => setPaymentForm(f => ({ ...f, recipientName: e.target.value }))}
+                                    autoFocus />
                             )}
                         </div>
+
                         <div>
                             <label className="label">Amount (₹)</label>
                             <input className="input-field" type="number" placeholder="0" value={paymentForm.amount}
                                 onChange={e => setPaymentForm(f => ({ ...f, amount: e.target.value }))} />
                         </div>
+
                         {paymentType === 'completed' && (
                             <div>
                                 <label className="label">Date</label>
@@ -462,14 +485,25 @@ export default function ProfileScreen({ yearId, profileId, onNavigate, onBack })
                                     onChange={e => setPaymentForm(f => ({ ...f, date: e.target.value }))} />
                             </div>
                         )}
+
+                        {/* Trustee — dropdown with inline add */}
                         <div>
                             <label className="label">Trustee (optional)</label>
                             <select className="input-field" value={paymentForm.trusteeId}
-                                onChange={e => setPaymentForm(f => ({ ...f, trusteeId: e.target.value }))}>
+                                style={{ fontSize: '0.9rem' }}
+                                onChange={e => setPaymentForm(f => ({ ...f, trusteeId: e.target.value, newTrusteeName: '' }))}>
                                 <option value="">None</option>
                                 {trustees.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                <option value="__new__">+ Add New Trustee</option>
                             </select>
+                            {paymentForm.trusteeId === '__new__' && (
+                                <input className="input-field" style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}
+                                    placeholder="Enter new trustee name"
+                                    value={paymentForm.newTrusteeName}
+                                    onChange={e => setPaymentForm(f => ({ ...f, newTrusteeName: e.target.value }))} />
+                            )}
                         </div>
+
                         <div>
                             <label className="label">Notes (optional)</label>
                             <input className="input-field" placeholder="Optional notes" value={paymentForm.notes}

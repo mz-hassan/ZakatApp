@@ -123,37 +123,39 @@ export default function TrusteesScreen({ onBack }) {
                 {/* Trustee Detail Modal */}
                 <Modal isOpen={!!selectedTrustee} onClose={() => setSelectedTrustee(null)}
                     title={selectedTrustee?.name || ''}>
-                    <div className="stat-row" style={{ marginBottom: '1rem' }}>
-                        <span className="stat-label" style={{ fontWeight: 600 }}>Total Distributed</span>
-                        <span className="stat-value" style={{ color: '#10b981', fontSize: '1.25rem' }}>{formatCurrency(trusteeTotal)}</span>
-                    </div>
-
-                    {trusteeHistory.length === 0 ? (
-                        <EmptyState title="No History" subtitle="No payments distributed through this trustee" />
-                    ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '40vh', overflowY: 'auto' }}>
-                            {trusteeHistory.map(entry => (
-                                <div key={entry.id} className="card" style={{ padding: '0.75rem' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <div>
-                                            <div style={{ fontSize: '0.85rem' }}>{profiles[entry.profileId] || '—'}</div>
-                                            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                                                {years[entry.zakatYearId] || '—'} · {formatDate(entry.date)}
-                                            </div>
-                                        </div>
-                                        <div style={{ fontWeight: 700, color: '#10b981' }}>{formatCurrency(entry.amount)}</div>
-                                    </div>
-                                </div>
-                            ))}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <div className="stat-row">
+                            <span className="stat-label" style={{ fontWeight: 600 }}>Total Distributed</span>
+                            <span className="stat-value" style={{ color: '#10b981', fontSize: '1.25rem' }}>{formatCurrency(trusteeTotal)}</span>
                         </div>
-                    )}
 
-                    {selectedTrustee && selectedTrustee.name !== 'Anonymous' && (
-                        <button className="btn btn-secondary" style={{ marginTop: '1rem', color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)' }}
-                            onClick={() => handleDeleteTrustee(selectedTrustee.id)}>
-                            Delete Trustee
-                        </button>
-                    )}
+                        {trusteeHistory.length === 0 ? (
+                            <EmptyState title="No History" subtitle="No payments distributed through this trustee" />
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '30vh', overflowY: 'auto', paddingRight: '0.25rem' }}>
+                                {trusteeHistory.map(entry => (
+                                    <div key={entry.id} className="card" style={{ padding: '0.75rem', flexShrink: 0 }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <div>
+                                                <div style={{ fontSize: '0.85rem' }}>{profiles[entry.profileId] || '—'}</div>
+                                                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                                                    {years[entry.zakatYearId] || '—'} · {formatDate(entry.date)}
+                                                </div>
+                                            </div>
+                                            <div style={{ fontWeight: 700, color: '#10b981' }}>{formatCurrency(entry.amount)}</div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {selectedTrustee && selectedTrustee.name !== 'Anonymous' && (
+                            <button className="btn btn-secondary" style={{ color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)' }}
+                                onClick={() => handleDeleteTrustee(selectedTrustee.id)}>
+                                Delete Trustee
+                            </button>
+                        )}
+                    </div>
                 </Modal>
             </div>
         </div>

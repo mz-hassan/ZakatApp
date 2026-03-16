@@ -15,6 +15,7 @@ export default function YearViewScreen({ yearId, onNavigate, onBack }) {
     const [showAddProfile, setShowAddProfile] = useState(false);
     const [newProfileName, setNewProfileName] = useState('');
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+    const [openMenuId, setOpenMenuId] = useState(null);
 
     useEffect(() => { loadData(); }, [yearId]);
 
@@ -40,26 +41,24 @@ export default function YearViewScreen({ yearId, onNavigate, onBack }) {
     }
 
     async function handleDeleteProfile(profileId) {
-        // Delete all holdings for this profile
         const holdings = await HoldingsService.getByProfile(profileId);
         for (const h of holdings) {
             await HoldingsService.delete(h.id);
         }
-        // Delete all ledger entries for this profile in this year
         const entries = await LedgerService.getByYearAndProfile(yearId, profileId);
         for (const e of entries) {
             await LedgerService.delete(e.id);
         }
-        // Delete the profile itself
         await ProfilesService.delete(profileId);
         setShowDeleteConfirm(null);
+        setOpenMenuId(null);
         await loadData();
     }
 
     if (!year) return null;
 
     return (
-        <div className="fade-in">
+        <div className="fade-in" onClick={() => setOpenMenuId(null)}>
             <div className="screen-header">
                 <button className="back-btn" onClick={onBack}>←</button>
                 <div>
@@ -93,22 +92,48 @@ export default function YearViewScreen({ yearId, onNavigate, onBack }) {
                             const stats = profileStats[p.id] || {};
                             return (
                                 <div key={p.id} className="card card-interactive"
-                                    onClick={() => onNavigate('profile', { yearId, profileId: p.id })}>
+                                    onClick={() => onNavigate('profile', { yearId, profileId: p.id })}
+                                    style={{ position: 'relative' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
                                         <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{p.name}</div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                                             {!year.locked && profiles.length > 1 && (
-                                                <button style={{
-                                                    background: 'none', border: 'none', color: '#ef4444',
-                                                    cursor: 'pointer', fontSize: '0.75rem', padding: '0.25rem',
-                                                }}
-                                                    onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(p); }}>
-                                                    Delete
-                                                </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setOpenMenuId(openMenuId === p.id ? null : p.id);
+                                                    }}
+                                                    style={{
+                                                        background: 'none', border: 'none', cursor: 'pointer',
+                                                        color: 'var(--color-text-muted)', fontSize: '1.25rem',
+                                                        padding: '0.25rem 0.5rem', lineHeight: 1, letterSpacing: '0.05em',
+                                                    }}
+                                                    aria-label="Profile options"
+                                                >⋮</button>
                                             )}
                                             <span style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>→</span>
                                         </div>
                                     </div>
+
+                                    {/* Dropdown menu */}
+                                    {openMenuId === p.id && (
+                                        <div onClick={e => e.stopPropagation()} style={{
+                                            position: 'absolute', top: '3rem', right: '0.75rem', zIndex: 10,
+                                            background: 'var(--color-surface-3)', border: '1px solid var(--color-border)',
+                                            borderRadius: '0.5rem', boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+                                            overflow: 'hidden', minWidth: 140,
+                                        }}>
+                                            <button onClick={() => { setOpenMenuId(null); setShowDeleteConfirm(p); }}
+                                                style={{
+                                                    display: 'block', width: '100%', textAlign: 'left',
+                                                    padding: '0.75rem 1rem', background: 'none', border: 'none',
+                                                    color: '#ef4444', cursor: 'pointer', fontSize: '0.9rem',
+                                                }}>
+                                                Delete Profile
+                                            </button>
+                                        </div>
+                                    )}
+
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
                                         <div>
                                             <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Due</div>
