@@ -116,8 +116,8 @@ export default function YearViewScreen({ yearId, onNavigate, onBack }) {
                 text += `  Holdings:\n`;
                 for (const h of holdings) {
                     text += `    • ${h.name} (${h.category}): ${formatCurrency(h.value)}`;
-                    if (h.updatedAt) text += ` — updated ${formatDate(h.updatedAt)}`;
-                    else if (h.createdAt) text += ` — added ${formatDate(h.createdAt)}`;
+                    if (h.updatedAt) text += ` [updated ${formatDate(h.updatedAt)}]`;
+                    else if (h.createdAt) text += ` [added ${formatDate(h.createdAt)}]`;
                     text += '\n';
                 }
                 text += `    Total: ${formatCurrency(s.totalHoldings || 0)}\n`;

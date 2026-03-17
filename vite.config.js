@@ -19,15 +19,17 @@ export default defineConfig({
         background_color: '#0c0c0c',
         display: 'standalone',
         orientation: 'portrait',
-        start_url: '/',
+        start_url: '/ZakatApp/',
+        scope: '/ZakatApp/',
+        id: '/ZakatApp/',
         icons: [
           {
-            src: 'icon-192.png',
+            src: '/ZakatApp/icon-192.png',
             sizes: '192x192',
             type: 'image/png',
           },
           {
-            src: 'icon-512.png',
+            src: '/ZakatApp/icon-512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable',
@@ -36,6 +38,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        navigateFallback: '/ZakatApp/index.html',
+        navigateFallbackDenylist: [/^\/api/],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
