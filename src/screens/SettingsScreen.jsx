@@ -190,7 +190,7 @@ export default function SettingsScreen({ onBack, onNavigate }) {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
                             <div>
                                 <div style={{ fontWeight: 600, marginBottom: '0.25rem', color: 'var(--text, #f0f0f0)' }}>Zakat Manager</div>
-                                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted, #666)' }}>Version 1.1 - Local-first, offline</div>
+                                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted, #666)' }}>Version 1.2 - Local-first, offline</div>
                                 <div style={{ fontSize: '0.78rem', color: 'var(--text-muted, #666)', marginTop: '0.375rem' }}>
                                     View the app overview and feature summary.
                                 </div>
