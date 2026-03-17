@@ -62,7 +62,7 @@ Error generating stack: `+a.message+`
 `;let Ne=0,Me=0,Ye=0;for(const ue of P){const ke=W[ue.id]||{},pe=await Fa.getByProfile(ue.id),Ct=await on.getByYearAndProfile(x,ue.id);if(G+=`▸ ${ue.name}
 `,G+="─".repeat(30)+`
 `,pe.length>0){G+=`  Holdings:
-`;for(const Ee of pe)G+=`    • ${Ee.name} (${Ee.category}): ${Ge(Ee.value)}`,Ee.updatedAt?G+=` — updated ${Ia(Ee.updatedAt)}`:Ee.createdAt&&(G+=` — added ${Ia(Ee.createdAt)}`),G+=`
+`;for(const Ee of pe)G+=`    • ${Ee.name} (${Ee.category}): ${Ge(Ee.value)}`,Ee.updatedAt?G+=` [updated ${Ia(Ee.updatedAt)}]`:Ee.createdAt&&(G+=` [added ${Ia(Ee.createdAt)}]`),G+=`
 `;G+=`    Total: ${Ge(ke.totalHoldings||0)}
 `}else G+=`  Holdings: None
 `;const Ve=Ct.filter(Ee=>Ee.type===Bt.INTEREST_REMOVED);if(Ve.length>0){G+=`
