@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { TrusteesService } from '../services/trustees';
 import { ProfilesService } from '../services/profiles';
 import { ZakatYearsService } from '../services/zakatYears';
+import { RecipientsService } from '../services/recipients';
+import { LEDGER_TYPES } from '../utils/constants';
 import { formatCurrency, formatDate } from '../utils/format';
 import Modal from '../components/Modal';
 import EmptyState from '../components/EmptyState';
@@ -17,14 +19,16 @@ export default function TrusteesScreen({ onBack }) {
     const [trusteeTotal, setTrusteeTotal] = useState(0);
     const [profiles, setProfiles] = useState({});
     const [years, setYears] = useState({});
+    const [recipients, setRecipients] = useState({});
 
     useEffect(() => { loadData(); }, []);
 
     async function loadData() {
-        const [t, p, y] = await Promise.all([
+        const [t, p, y, r] = await Promise.all([
             TrusteesService.getAll(),
             ProfilesService.getAll(),
             ZakatYearsService.getAll(),
+            RecipientsService.getAll(),
         ]);
         setTrustees(t);
         const profileMap = {};
@@ -33,6 +37,9 @@ export default function TrusteesScreen({ onBack }) {
         const yearMap = {};
         y.forEach(yr => { yearMap[yr.id] = yr.label; });
         setYears(yearMap);
+        const recipientMap = {};
+        r.forEach(rc => { recipientMap[rc.id] = rc.name; });
+        setRecipients(recipientMap);
 
         const totals = {};
         for (const trustee of t) {
@@ -132,17 +139,31 @@ export default function TrusteesScreen({ onBack }) {
                         {trusteeHistory.length === 0 ? (
                             <EmptyState title="No History" subtitle="No payments distributed through this trustee" />
                         ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '30vh', overflowY: 'auto', paddingRight: '0.25rem' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '40vh', overflowY: 'auto', paddingRight: '0.25rem' }}>
                                 {trusteeHistory.map(entry => (
                                     <div key={entry.id} className="card" style={{ padding: '0.75rem', flexShrink: 0 }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                             <div>
-                                                <div style={{ fontSize: '0.85rem' }}>{profiles[entry.profileId] || '—'}</div>
-                                                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                                                    {years[entry.zakatYearId] || '—'} · {formatDate(entry.date)}
+                                                {/* Recipient - who the money went to */}
+                                                <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                                                    → {entry.recipientId && recipients[entry.recipientId]
+                                                        ? recipients[entry.recipientId]
+                                                        : 'Anonymous'}
                                                 </div>
+                                                {/* Profile - whose zakat it was */}
+                                                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginTop: '0.125rem' }}>
+                                                    From: {profiles[entry.profileId] || 'Unknown profile'}
+                                                </div>
+                                                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '0.125rem' }}>
+                                                    {years[entry.zakatYearId] || 'Unknown year'} · {formatDate(entry.date)}
+                                                </div>
+                                                {entry.notes && (
+                                                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '0.125rem' }}>{entry.notes}</div>
+                                                )}
                                             </div>
-                                            <div style={{ fontWeight: 700, color: '#10b981' }}>{formatCurrency(entry.amount)}</div>
+                                            <div style={{ fontWeight: 700, color: '#10b981', flexShrink: 0, marginLeft: '0.5rem' }}>
+                                                {formatCurrency(entry.amount)}
+                                            </div>
                                         </div>
                                     </div>
                                 ))}

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { db } from '../db/db';
+import AppIntro from './AppIntro';
 
 async function hashPIN(pin) {
     const encoder = new TextEncoder();
@@ -8,30 +9,32 @@ async function hashPIN(pin) {
     return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-export default function PinLock({ onUnlock }) {
+export default function PinLock({ onUnlock, mode = 'unlock', onBack, onComplete }) {
     const [pin, setPin] = useState('');
     const [confirmPin, setConfirmPin] = useState('');
-    const [isSetup, setIsSetup] = useState(false);
     const [step, setStep] = useState('loading');
     const [error, setError] = useState('');
     const [shake, setShake] = useState(false);
 
-    useEffect(() => {
-        checkPin();
-    }, []);
+    useEffect(() => { checkPin(); }, [mode]);
 
     async function checkPin() {
-        // Check if PIN is enabled
+        if (mode === 'setup') {
+            setPin('');
+            setConfirmPin('');
+            setError('');
+            setStep('setup');
+            return;
+        }
+
         const pinEnabledSetting = await db.settings.get('pinEnabled');
         if (pinEnabledSetting && pinEnabledSetting.value === false) {
             onUnlock();
             return;
         }
-
         const setting = await db.settings.get('pin');
         if (!setting || !setting.value) {
-            setStep('setup');
-            setIsSetup(true);
+            setStep('landing');
         } else {
             setStep('enter');
         }
@@ -43,24 +46,19 @@ export default function PinLock({ onUnlock }) {
             if (pin.length < 4) setPin(prev => prev + d);
         } else if (step === 'confirm') {
             if (confirmPin.length < 4) setConfirmPin(prev => prev + d);
-        } else {
+        } else if (step === 'enter') {
             if (pin.length < 4) setPin(prev => prev + d);
         }
     }
 
     function handleDelete() {
-        if (step === 'confirm') {
-            setConfirmPin(prev => prev.slice(0, -1));
-        } else {
-            setPin(prev => prev.slice(0, -1));
-        }
+        if (step === 'confirm') setConfirmPin(prev => prev.slice(0, -1));
+        else setPin(prev => prev.slice(0, -1));
     }
 
     useEffect(() => {
         if (step === 'setup' && pin.length === 4) {
-            setTimeout(() => {
-                setStep('confirm');
-            }, 200);
+            setTimeout(() => setStep('confirm'), 200);
         } else if (step === 'confirm' && confirmPin.length === 4) {
             setTimeout(() => handleConfirm(), 200);
         } else if (step === 'enter' && pin.length === 4) {
@@ -79,6 +77,11 @@ export default function PinLock({ onUnlock }) {
         }
         const hashed = await hashPIN(pin);
         await db.settings.put({ key: 'pin', value: hashed });
+        await db.settings.put({ key: 'pinEnabled', value: true });
+        if (mode === 'setup') {
+            onComplete?.();
+            return;
+        }
         onUnlock();
     }
 
@@ -94,53 +97,117 @@ export default function PinLock({ onUnlock }) {
         }
     }
 
+    async function handleContinueWithoutPin() {
+        await db.settings.put({ key: 'pinEnabled', value: false });
+        onUnlock();
+    }
+
     function triggerShake() {
         setShake(true);
         setTimeout(() => setShake(false), 500);
     }
 
-    const currentPin = step === 'confirm' ? confirmPin : pin;
-    const title = step === 'setup' ? 'Create PIN' : step === 'confirm' ? 'Confirm PIN' : 'Enter PIN';
-    const subtitle = step === 'setup' ? 'Set a 4-digit PIN to secure your data' : step === 'confirm' ? 'Enter your PIN again to confirm' : 'Enter your PIN to unlock';
-
     if (step === 'loading') {
         return (
             <div style={{
-                minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: '#0c0c0c',
+                minHeight: '100dvh', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', background: 'var(--bg, #0c0c0c)',
             }}>
-                <div style={{ fontSize: '1.25rem', color: '#999' }}>Loading...</div>
+                <div style={{ color: 'var(--text-muted, #555)' }}>Loading…</div>
             </div>
         );
     }
 
+    // Landing - shown only on first launch when no PIN has been set
+    if (step === 'landing') {
+        return (
+            <div style={{
+                minHeight: '100dvh', background: 'var(--bg, #0c0c0c)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                padding: '2.5rem 1.5rem',
+            }}>
+                <AppIntro>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+                        <button
+                            onClick={() => { setPin(''); setStep('setup'); }}
+                            style={{
+                                width: '100%', padding: '0.9rem', borderRadius: '0.875rem',
+                                background: 'linear-gradient(135deg, #059669, #047857)',
+                                border: 'none', color: '#fff', fontSize: '0.95rem',
+                                fontWeight: 700, cursor: 'pointer',
+                            }}
+                        >
+                            Set up PIN security
+                        </button>
+                        <button
+                            onClick={handleContinueWithoutPin}
+                            style={{
+                                width: '100%', padding: '0.875rem', borderRadius: '0.875rem',
+                                background: 'transparent',
+                                border: '1px solid var(--border, #252525)',
+                                color: 'var(--text-muted, #666)', fontSize: '0.9rem',
+                                fontWeight: 500, cursor: 'pointer',
+                            }}
+                        >
+                            Continue without PIN
+                        </button>
+                        <p style={{
+                            textAlign: 'center', fontSize: '0.72rem',
+                            color: 'var(--text-muted, #3d3d3d)', margin: '0.125rem 0 0',
+                        }}>
+                            You can change this anytime in Settings
+                        </p>
+                    </div>
+                </AppIntro>
+            </div>
+        );
+    }
+
+    // PIN keypad (setup / confirm / enter)
+    const currentPin = step === 'confirm' ? confirmPin : pin;
+    const title =
+        step === 'setup' ? 'Create PIN'
+            : step === 'confirm' ? 'Confirm PIN'
+                : 'Enter PIN';
+    const subtitle =
+        step === 'setup' ? 'Choose a 4-digit PIN to secure your data'
+            : step === 'confirm' ? 'Enter your PIN again to confirm'
+                : 'Enter your PIN to unlock';
+
     return (
         <div style={{
             minHeight: '100dvh', display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center', background: '#0c0c0c',
-            padding: '2rem 1rem', gap: '2rem',
+            alignItems: 'center', justifyContent: 'center',
+            background: 'var(--bg, #0c0c0c)', padding: '2rem 1rem', gap: '2rem',
         }}>
-            {/* Header */}
+            {mode === 'setup' && onBack && (
+                <div style={{
+                    position: 'absolute',
+                    top: '1rem',
+                    left: '1rem',
+                }}>
+                    <button className="back-btn" onClick={onBack}>←</button>
+                </div>
+            )}
             <div style={{ textAlign: 'center' }}>
                 <div style={{
-                    width: 64, height: 64, borderRadius: 16,
+                    width: 50, height: 50, borderRadius: 13,
                     background: 'linear-gradient(135deg, #059669, #047857)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    margin: '0 auto 1rem', fontSize: '1.5rem', fontWeight: 800, color: '#fff',
-                    letterSpacing: '-0.02em',
+                    margin: '0 auto 1rem',
+                    fontSize: '0.9rem', fontWeight: 800, color: '#fff',
                 }}>ZM</div>
-                <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0 0 0.5rem' }}>{title}</h1>
-                <p style={{ color: '#999', fontSize: '0.95rem', margin: 0 }}>{subtitle}</p>
+                <h1 style={{ fontSize: '1.375rem', fontWeight: 700, margin: '0 0 0.375rem', color: 'var(--text, #f0f0f0)' }}>{title}</h1>
+                <p style={{ color: 'var(--text-muted, #666)', fontSize: '0.875rem', margin: 0 }}>{subtitle}</p>
             </div>
 
-            {/* PIN dots */}
             <div style={{
                 display: 'flex', gap: '1rem',
                 animation: shake ? 'shake 0.5s ease' : 'none',
             }}>
                 {[0, 1, 2, 3].map(i => (
                     <div key={i} style={{
-                        width: 18, height: 18, borderRadius: '50%',
+                        width: 16, height: 16, borderRadius: '50%',
                         border: '2px solid #059669',
                         background: i < currentPin.length ? '#059669' : 'transparent',
                         transition: 'background 0.15s ease',
@@ -149,10 +216,9 @@ export default function PinLock({ onUnlock }) {
             </div>
 
             {error && (
-                <p style={{ color: '#ef4444', fontSize: '0.9rem', margin: '-0.5rem 0' }}>{error}</p>
+                <p style={{ color: '#ef4444', fontSize: '0.875rem', margin: '-0.5rem 0' }}>{error}</p>
             )}
 
-            {/* Keypad */}
             <div style={{
                 display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
                 gap: '0.75rem', maxWidth: 280, width: '100%',
@@ -166,17 +232,17 @@ export default function PinLock({ onUnlock }) {
                         }}
                         style={{
                             width: '100%', aspectRatio: '1.3', borderRadius: 12,
-                            border: key === null ? 'none' : '1px solid #333',
-                            background: key === null ? 'transparent' : '#1a1a1a',
-                            color: key === 'del' ? '#999' : '#f0f0f0',
+                            border: key === null ? 'none' : '1px solid var(--pin-btn-border, #222)',
+                            background: key === null ? 'transparent' : 'var(--pin-btn-bg, #141414)',
+                            color: key === 'del' ? 'var(--text-muted, #666)' : 'var(--text, #f0f0f0)',
                             fontSize: key === 'del' ? '1.1rem' : '1.5rem',
                             fontWeight: 600, cursor: key === null ? 'default' : 'pointer',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             visibility: key === null ? 'hidden' : 'visible',
                             transition: 'background 0.15s',
                         }}
-                        onTouchStart={(e) => { if (key !== null) e.currentTarget.style.background = '#333'; }}
-                        onTouchEnd={(e) => { if (key !== null) e.currentTarget.style.background = '#1a1a1a'; }}
+                        onTouchStart={e => { if (key !== null) e.currentTarget.style.background = 'var(--surface-4, #2a2a2a)'; }}
+                        onTouchEnd={e => { if (key !== null) e.currentTarget.style.background = 'var(--pin-btn-bg, #141414)'; }}
                     >
                         {key === 'del' ? '⌫' : key}
                     </button>
@@ -186,10 +252,10 @@ export default function PinLock({ onUnlock }) {
             <style>{`
         @keyframes shake {
           0%, 100% { transform: translateX(0); }
-          20% { transform: translateX(-10px); }
-          40% { transform: translateX(10px); }
-          60% { transform: translateX(-10px); }
-          80% { transform: translateX(10px); }
+          20%  { transform: translateX(-10px); }
+          40%  { transform: translateX(10px); }
+          60%  { transform: translateX(-10px); }
+          80%  { transform: translateX(10px); }
         }
       `}</style>
         </div>

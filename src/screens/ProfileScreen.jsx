@@ -156,7 +156,7 @@ export default function ProfileScreen({ yearId, profileId, onNavigate, onBack })
             recipientId = Number(recipientId);
         }
 
-        // Handle trustee — could be existing or new
+        // Handle trustee - could be existing or new
         let trusteeId = undefined;
         if (paymentForm.trusteeId === '__new__' && paymentForm.newTrusteeName.trim()) {
             trusteeId = await TrusteesService.add(paymentForm.newTrusteeName.trim());
@@ -441,7 +441,7 @@ export default function ProfileScreen({ yearId, profileId, onNavigate, onBack })
                 <Modal isOpen={showPayment} onClose={() => setShowPayment(false)}
                     title={paymentType === 'planned' ? 'Plan Payment' : 'Add Payment'}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
-                        {/* Recipient — dropdown */}
+                        {/* Recipient - dropdown */}
                         <div>
                             <label className="label">Recipient</label>
                             <select className="input-field" value={paymentForm.recipientId}
@@ -480,7 +480,7 @@ export default function ProfileScreen({ yearId, profileId, onNavigate, onBack })
                             </div>
                         )}
 
-                        {/* Trustee — dropdown with inline add */}
+                        {/* Trustee - dropdown with inline add */}
                         <div>
                             <label className="label">Trustee (optional)</label>
                             <select className="input-field" value={paymentForm.trusteeId}

@@ -30,6 +30,23 @@ export const ZakatYearsService = {
         return db.zakatYears.update(id, { locked: 1 });
     },
 
+    async unlock(id) {
+        return db.zakatYears.update(id, { locked: 0 });
+    },
+
+    async rename(id, label) {
+        return db.zakatYears.update(id, { label: label.trim() });
+    },
+
+    async delete(id) {
+        // Delete all ledger entries for this year first
+        const entries = await db.ledger.where('zakatYearId').equals(id).toArray();
+        for (const e of entries) {
+            await db.ledger.delete(e.id);
+        }
+        return db.zakatYears.delete(id);
+    },
+
     async startNewYear(label) {
         // 1. Lock all existing unlocked years
         const unlocked = await db.zakatYears.where('locked').equals(0).toArray();

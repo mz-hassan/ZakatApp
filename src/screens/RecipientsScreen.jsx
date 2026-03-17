@@ -27,6 +27,7 @@ export default function RecipientsScreen({ onBack }) {
     const [trusteeTotal, setTrusteeTotal] = useState(0);
     const [profiles, setProfiles] = useState({});
     const [years, setYears] = useState({});
+    const [recipientNames, setRecipientNames] = useState({});
 
     useEffect(() => { loadData(); }, []);
 
@@ -40,6 +41,9 @@ export default function RecipientsScreen({ onBack }) {
         const tMap = {};
         t.forEach(tr => { tMap[tr.id] = tr.name; });
         setTrusteeMap(tMap);
+        const rMap = {};
+        r.forEach(rc => { rMap[rc.id] = rc.name; });
+        setRecipientNames(rMap);
     }
 
     async function handleAddRecipient() {
@@ -80,7 +84,6 @@ export default function RecipientsScreen({ onBack }) {
         setRecipientPayments(payments);
         setRecipientTotal(payments.reduce((sum, e) => sum + (Number(e.amount) || 0), 0));
 
-        // Load profile and year names
         const { ProfilesService } = await import('../services/profiles');
         const { ZakatYearsService } = await import('../services/zakatYears');
         const allProfiles = await ProfilesService.getAll();
@@ -95,7 +98,6 @@ export default function RecipientsScreen({ onBack }) {
 
     async function viewTrustee(trustee) {
         setSelectedTrustee(trustee);
-        // Load all ledger entries with this trusteeId
         const { db } = await import('../db/db');
         const entries = await db.ledger.where('trusteeId').equals(trustee.id).toArray();
         const payments = entries.filter(e =>
@@ -104,7 +106,6 @@ export default function RecipientsScreen({ onBack }) {
         setTrusteeHistory(payments);
         setTrusteeTotal(payments.reduce((sum, e) => sum + (Number(e.amount) || 0), 0));
 
-        // Load profile and year names for display
         const { ProfilesService } = await import('../services/profiles');
         const { ZakatYearsService } = await import('../services/zakatYears');
         const allProfiles = await ProfilesService.getAll();
@@ -225,7 +226,7 @@ export default function RecipientsScreen({ onBack }) {
                                             <div>
                                                 <div style={{ fontSize: '0.85rem' }}>{formatDate(entry.date)}</div>
                                                 <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '0.125rem' }}>
-                                                    {profileMap[entry.profileId] || '—'} · {yearMap[entry.zakatYearId] || '—'}
+                                                    {profileMap[entry.profileId] || 'Unknown profile'} · {yearMap[entry.zakatYearId] || 'Unknown year'}
                                                 </div>
                                                 {entry.trusteeId && trusteeMap[entry.trusteeId] && (
                                                     <div style={{ fontSize: '0.75rem', color: '#a78bfa', marginTop: '0.125rem' }}>
@@ -267,14 +268,25 @@ export default function RecipientsScreen({ onBack }) {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '30vh', overflowY: 'auto', paddingRight: '0.25rem' }}>
                                 {trusteeHistory.map(entry => (
                                     <div key={entry.id} className="card" style={{ padding: '0.75rem', flexShrink: 0 }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                             <div>
-                                                <div style={{ fontSize: '0.85rem' }}>{profiles[entry.profileId] || '—'}</div>
+                                                {/* Recipient - who got the money */}
+                                                <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>
+                                                    → {entry.recipientId && recipientNames[entry.recipientId]
+                                                        ? recipientNames[entry.recipientId]
+                                                        : 'Anonymous'}
+                                                </div>
+                                                {/* Profile - whose zakat it was */}
+                                                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginTop: '0.125rem' }}>
+                                                    From: {profiles[entry.profileId] || 'Unknown profile'}
+                                                </div>
                                                 <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                                                    {years[entry.zakatYearId] || '—'} · {formatDate(entry.date)}
+                                                    {years[entry.zakatYearId] || 'Unknown year'} · {formatDate(entry.date)}
                                                 </div>
                                             </div>
-                                            <div style={{ fontWeight: 700, color: '#10b981' }}>{formatCurrency(entry.amount)}</div>
+                                            <div style={{ fontWeight: 700, color: '#10b981', flexShrink: 0, marginLeft: '0.5rem' }}>
+                                                {formatCurrency(entry.amount)}
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
