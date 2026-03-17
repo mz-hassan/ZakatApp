@@ -98,6 +98,20 @@ export default function SettingsScreen({ onBack, onNavigate }) {
         input.click();
     }
 
+    async function handleDeleteAllData() {
+        const confirmed = confirm('Delete all app data and start fresh? This will permanently remove all years, holdings, payments, recipients, trustees, PIN settings, and backups stored in this app.');
+        if (!confirmed) return;
+
+        try {
+            document.documentElement.removeAttribute('data-theme');
+            await db.delete();
+            window.location.reload();
+        } catch (err) {
+            setMessage('Error: ' + err.message);
+            setTimeout(() => setMessage(''), 4000);
+        }
+    }
+
     const isLight = theme === 'light';
 
     return (
@@ -171,6 +185,17 @@ export default function SettingsScreen({ onBack, onNavigate }) {
                         <button className="btn btn-secondary" onClick={handleExportCSV}>Download as Spreadsheet</button>
                         <button className="btn btn-secondary" onClick={handleImport} disabled={importing}>
                             {importing ? 'Restoring…' : 'Restore from Backup'}
+                        </button>
+                        <button
+                            className="btn btn-secondary"
+                            onClick={handleDeleteAllData}
+                            style={{
+                                color: '#ef4444',
+                                borderColor: 'rgba(239,68,68,0.35)',
+                                background: 'var(--surface-2, #171717)',
+                            }}
+                        >
+                            Delete All Data
                         </button>
                     </div>
                 </Section>

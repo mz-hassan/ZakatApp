@@ -28,6 +28,23 @@ export default function App() {
     }, []);
 
     useEffect(() => {
+        async function requestPersistentStorage() {
+            if (!navigator.storage?.persisted || !navigator.storage?.persist) return;
+
+            try {
+                const alreadyPersistent = await navigator.storage.persisted();
+                if (!alreadyPersistent) {
+                    await navigator.storage.persist();
+                }
+            } catch {
+                // Ignore browsers that reject or do not support persistence.
+            }
+        }
+
+        requestPersistentStorage();
+    }, []);
+
+    useEffect(() => {
         if (!ready || !unlocked) return;
 
         function handlePopState(event) {
